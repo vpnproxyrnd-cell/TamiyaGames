@@ -1,0 +1,911 @@
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mini 4WD: Circuit Racer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap');
+        
+        body {
+            font-family: 'Orbitron', sans-serif;
+            background-color: #0f172a; /* slate-900 */
+            color: white;
+            overflow: hidden;
+            touch-action: none; /* Prevent scroll on touch */
+        }
+
+        .tab-btn {
+            transition: all 0.2s;
+        }
+        .tab-btn.active {
+            border-bottom: 4px solid #3b82f6;
+            color: #60a5fa;
+        }
+
+        /* Custom scrollbar for shop */
+        .custom-scroll::-webkit-scrollbar { width: 6px; }
+        .custom-scroll::-webkit-scrollbar-track { background: #1e293b; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+
+        canvas {
+            background-color: #1e293b;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5) inset;
+        }
+
+        .shake {
+            animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+        }
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-1px, 0, 0); }
+            20%, 80% { transform: translate3d(2px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+            40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+
+        .toast {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(16, 185, 129, 0.9);
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-weight: bold;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+            z-index: 100;
+        }
+        .toast.show { opacity: 1; }
+    </style>
+</head>
+<body class="flex items-center justify-center h-screen w-screen relative">
+
+    <div id="toast" class="toast">Action Successful!</div>
+
+    <!-- Main Game Container -->
+    <div id="app" class="w-full max-w-md h-full bg-slate-800 flex flex-col shadow-2xl relative overflow-hidden">
+        
+        <!-- Header -->
+        <header class="bg-slate-900 p-4 flex justify-between items-center border-b border-slate-700 z-10">
+            <div>
+                <h1 class="text-xl font-black text-blue-400 italic tracking-wider">MINI 4WD</h1>
+                <p class="text-xs text-slate-400">CIRCUIT RACER</p>
+            </div>
+            <div class="bg-slate-800 px-3 py-1 rounded-full border border-yellow-500 flex items-center gap-2">
+                <span class="text-yellow-500 font-bold">💰</span>
+                <span id="gold-display" class="font-bold text-white">1000</span>
+            </div>
+        </header>
+
+        <!-- Navigation -->
+        <nav class="flex bg-slate-900 border-b border-slate-700 z-10" id="main-nav">
+            <button onclick="switchTab('garage')" class="tab-btn active flex-1 py-3 text-sm font-bold text-slate-300 hover:text-white uppercase">Garage</button>
+            <button onclick="switchTab('shop')" class="tab-btn flex-1 py-3 text-sm font-bold text-slate-300 hover:text-white uppercase">Shop</button>
+            <button onclick="switchTab('race')" class="tab-btn flex-1 py-3 text-sm font-bold text-slate-300 hover:text-white uppercase">Race</button>
+        </nav>
+
+        <!-- Main Content Area -->
+        <main class="flex-1 overflow-hidden relative">
+            
+            <!-- GARAGE TAB -->
+            <div id="tab-garage" class="h-full flex flex-col absolute inset-0 overflow-y-auto custom-scroll p-4 space-y-4">
+                <div class="bg-slate-700 rounded-xl p-4 flex flex-col items-center border border-slate-600">
+                    <div class="w-48 h-32 relative bg-slate-800 rounded-lg border border-slate-900 flex justify-center items-center shadow-inner mb-4 overflow-hidden">
+                        <!-- CSS Car representation -->
+                        <div class="relative w-16 h-24 bg-blue-600 rounded-t-full rounded-b-md shadow-lg border-2 border-blue-800">
+                            <div class="absolute top-4 left-1 w-14 h-8 bg-black rounded-t-xl opacity-80"></div>
+                            <div class="absolute -left-2 top-2 w-2 h-4 bg-gray-900 rounded"></div>
+                            <div class="absolute -right-2 top-2 w-2 h-4 bg-gray-900 rounded"></div>
+                            <div class="absolute -left-2 bottom-2 w-2 h-4 bg-gray-900 rounded"></div>
+                            <div class="absolute -right-2 bottom-2 w-2 h-4 bg-gray-900 rounded"></div>
+                            <!-- Rollers representation -->
+                            <div class="absolute -left-3 -top-1 w-3 h-3 rounded-full bg-slate-300 border border-slate-500"></div>
+                            <div class="absolute -right-3 -top-1 w-3 h-3 rounded-full bg-slate-300 border border-slate-500"></div>
+                            <div class="absolute -left-3 -bottom-1 w-3 h-3 rounded-full bg-slate-300 border border-slate-500"></div>
+                            <div class="absolute -right-3 -bottom-1 w-3 h-3 rounded-full bg-slate-300 border border-slate-500"></div>
+                        </div>
+                    </div>
+                    
+                    <h2 class="text-lg font-bold text-blue-300 mb-2 w-full border-b border-slate-600 pb-1">Car Stats</h2>
+                    <div class="w-full space-y-2 text-sm">
+                        <div class="flex items-center">
+                            <span class="w-24 text-slate-400">Top Speed</span>
+                            <div class="flex-1 bg-slate-900 h-3 rounded-full overflow-hidden">
+                                <div id="stat-spd" class="bg-blue-500 h-full w-1/2"></div>
+                            </div>
+                            <span id="stat-spd-val" class="w-8 text-right font-bold">50</span>
+                        </div>
+                        <div class="flex items-center">
+                            <span class="w-24 text-slate-400">Acceleration</span>
+                            <div class="flex-1 bg-slate-900 h-3 rounded-full overflow-hidden">
+                                <div id="stat-acc" class="bg-red-500 h-full w-1/2"></div>
+                            </div>
+                            <span id="stat-acc-val" class="w-8 text-right font-bold">50</span>
+                        </div>
+                        <div class="flex items-center">
+                            <span class="w-24 text-slate-400">Cornering</span>
+                            <div class="flex-1 bg-slate-900 h-3 rounded-full overflow-hidden">
+                                <div id="stat-crn" class="bg-green-500 h-full w-1/2"></div>
+                            </div>
+                            <span id="stat-crn-val" class="w-8 text-right font-bold">50</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-slate-700 rounded-xl p-4 border border-slate-600">
+                    <h2 class="text-lg font-bold text-blue-300 mb-3 border-b border-slate-600 pb-1">Equipped Parts</h2>
+                    <div id="equipment-list" class="space-y-3">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- SHOP TAB -->
+            <div id="tab-shop" class="h-full flex flex-col absolute inset-0 hidden">
+                <div class="p-2 flex gap-2 overflow-x-auto custom-scroll bg-slate-800 border-b border-slate-700 shrink-0">
+                    <button onclick="renderShop('motor')" class="shop-filter px-3 py-1 bg-slate-600 rounded text-sm font-bold active-filter">Motors</button>
+                    <button onclick="renderShop('tire')" class="shop-filter px-3 py-1 bg-slate-700 rounded text-sm font-bold">Tires</button>
+                    <button onclick="renderShop('roller')" class="shop-filter px-3 py-1 bg-slate-700 rounded text-sm font-bold">Rollers</button>
+                </div>
+                <div id="shop-items" class="flex-1 overflow-y-auto custom-scroll p-4 space-y-3">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+
+            <!-- RACE SELECTION TAB -->
+            <div id="tab-race" class="h-full flex flex-col absolute inset-0 hidden p-4 space-y-4 overflow-y-auto custom-scroll">
+                <div class="bg-slate-700 p-4 rounded-xl border border-slate-600 text-center">
+                    <h2 class="text-xl font-bold text-white mb-2">Select Opponent</h2>
+                    <p class="text-sm text-slate-400 mb-4">Win to earn gold. Watch out for sharp corners! If your speed is too high and cornering is too low, you will course out.</p>
+                </div>
+
+                <div id="opponent-list" class="space-y-3">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+
+            <!-- RACE CANVAS (Overlay) -->
+            <div id="race-screen" class="absolute inset-0 bg-slate-900 hidden flex-col z-50">
+                <!-- HUD -->
+                <div class="absolute top-0 left-0 w-full p-4 flex justify-between items-start z-10 pointer-events-none">
+                    <div class="bg-black/70 p-2 rounded-lg border border-slate-700">
+                        <div class="text-xs text-slate-400 uppercase">Pos</div>
+                        <div id="hud-pos" class="text-2xl font-black text-white">1st</div>
+                    </div>
+                    <div class="bg-black/70 p-2 rounded-lg border border-slate-700 text-center min-w-[80px]">
+                        <div class="text-xs text-slate-400 uppercase">Lap</div>
+                        <div class="text-2xl font-black text-yellow-400"><span id="hud-lap">1</span><span class="text-sm text-slate-400">/3</span></div>
+                    </div>
+                </div>
+
+                <div class="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/70 px-6 py-3 rounded-full border border-slate-600 z-10 pointer-events-none flex gap-6">
+                    <div class="text-center">
+                        <div class="text-[10px] text-slate-400 uppercase">Speed</div>
+                        <div class="text-xl font-bold text-cyan-400"><span id="hud-speed">0</span> <span class="text-xs">km/h</span></div>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-[10px] text-slate-400 uppercase">Status</div>
+                        <div id="hud-status" class="text-xl font-bold text-green-400">STABLE</div>
+                    </div>
+                </div>
+
+                <!-- Messages -->
+                <div id="race-message" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-5xl font-black text-white italic drop-shadow-[0_0_10px_rgba(255,255,255,0.8)] z-20 pointer-events-none scale-0 transition-transform duration-300">
+                    READY
+                </div>
+
+                <!-- Post Race Screen -->
+                <div id="post-race" class="absolute inset-0 bg-black/90 z-30 hidden flex-col items-center justify-center p-6 text-center">
+                    <h1 id="result-title" class="text-4xl font-black mb-2 text-white italic">YOU WIN!</h1>
+                    <p id="result-desc" class="text-slate-300 mb-6">+500 Gold earned</p>
+                    <button onclick="exitRace()" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-8 rounded-full shadow-lg border border-blue-400 transition-colors uppercase tracking-widest w-full max-w-xs">Return to Garage</button>
+                </div>
+
+                <!-- Canvas -->
+                <div class="flex-1 w-full flex items-center justify-center relative overflow-hidden" id="canvas-container">
+                    <canvas id="gameCanvas" width="600" height="800" class="max-w-full max-h-full object-contain"></canvas>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+<script>
+// --- GAME DATA ---
+const PARTS = {
+    motor: [
+        { id: 'm0', name: 'Stock Motor', desc: 'Basic motor. Reliable but slow.', spd: 10, acc: 10, crn: 0, cost: 0, color: 'gray' },
+        { id: 'm1', name: 'Rev-Tuned', desc: 'High top speed, lower acceleration.', spd: 25, acc: 12, crn: 0, cost: 300, color: 'blue' },
+        { id: 'm2', name: 'Torque-Tuned', desc: 'High acceleration, lower top speed.', spd: 15, acc: 25, crn: 0, cost: 300, color: 'orange' },
+        { id: 'm3', name: 'Hyper-Dash', desc: 'Incredible speed and accel, but makes car unstable.', spd: 40, acc: 40, crn: -10, cost: 1000, color: 'red' },
+        { id: 'm4', name: 'Plasma-Dash', desc: 'Extreme performance. Hard to control.', spd: 60, acc: 60, crn: -20, cost: 2500, color: 'purple' }
+    ],
+    tire: [
+        { id: 't0', name: 'Stock Rubber', desc: 'Basic grip.', spd: 0, acc: 0, crn: 10, cost: 0 },
+        { id: 't1', name: 'Slick Tires', desc: 'Less friction for higher speed, poor grip.', spd: 10, acc: 0, crn: -5, cost: 250 },
+        { id: 't2', name: 'Sponge Tires', desc: 'High grip, lower speed.', spd: -5, acc: 0, crn: 25, cost: 400 },
+        { id: 't3', name: 'Super Hard', desc: 'Great balance of speed and cornering.', spd: 5, acc: 5, crn: 15, cost: 800 }
+    ],
+    roller: [
+        { id: 'r0', name: 'None', desc: 'No cornering assistance.', spd: 0, acc: 0, crn: 0, cost: 0 },
+        { id: 'r1', name: 'Plastic Rollers', desc: 'Basic cornering stability.', spd: 0, acc: 0, crn: 15, cost: 200 },
+        { id: 'r2', name: 'Aluminum Rollers', desc: 'Strong stability, slight weight penalty.', spd: -2, acc: -2, crn: 35, cost: 600 },
+        { id: 'r3', name: 'Ball Bearing', desc: 'Maximum stability, smooth spinning.', spd: 0, acc: 0, crn: 60, cost: 1500 }
+    ]
+};
+
+const OPPONENTS = [
+    { id: 'opp1', name: 'Taro (Beginner)', desc: 'Drives a stock car.', reward: 200, car: { motor: 'm0', tire: 't0', roller: 'r0' }, color: '#4ade80' },
+    { id: 'opp2', name: 'Kenji (Amateur)', desc: 'Upgraded motor, decent speed.', reward: 500, car: { motor: 'm1', tire: 't0', roller: 'r1' }, color: '#3b82f6' },
+    { id: 'opp3', name: 'Ryo (Pro)', desc: 'Hyper-Dash engine. Very fast.', reward: 1000, car: { motor: 'm3', tire: 't3', roller: 'r2' }, color: '#f97316' },
+    { id: 'opp4', name: 'Champion Jin', desc: 'Perfect setup. Do not challenge unless ready.', reward: 3000, car: { motor: 'm4', tire: 't3', roller: 'r3' }, color: '#e11d48' }
+];
+
+// --- STATE ---
+let player = {
+    gold: 500,
+    inventory: {
+        motor: ['m0'], tire: ['t0'], roller: ['r0']
+    },
+    equipped: {
+        motor: 'm0', tire: 't0', roller: 'r0'
+    }
+};
+
+let currentStats = { spd: 0, acc: 0, crn: 0 };
+let currentShopCategory = 'motor';
+
+// --- INITIALIZATION & UI ---
+function init() {
+    // Try load save
+    const saved = localStorage.getItem('mini4wd_save');
+    if (saved) {
+        try { player = JSON.parse(saved); } catch (e) { console.error('Save corrupted'); }
+    }
+    
+    updateUI();
+    renderEquipmentList();
+    renderOpponentList();
+}
+
+function saveGame() {
+    localStorage.setItem('mini4wd_save', JSON.stringify(player));
+    updateUI();
+}
+
+function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.innerText = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+function updateUI() {
+    document.getElementById('gold-display').innerText = player.gold;
+    
+    // Calc stats
+    let s = 10, a = 10, c = 10; // Base stats
+    Object.keys(player.equipped).forEach(type => {
+        const partId = player.equipped[type];
+        const part = PARTS[type].find(p => p.id === partId);
+        if(part) {
+            s += part.spd;
+            a += part.acc;
+            c += part.crn;
+        }
+    });
+    
+    // Clamp
+    s = Math.max(1, Math.min(100, s));
+    a = Math.max(1, Math.min(100, a));
+    c = Math.max(1, Math.min(100, c));
+    
+    currentStats = { spd: s, acc: a, crn: c };
+    
+    document.getElementById('stat-spd').style.width = `${s}%`;
+    document.getElementById('stat-spd-val').innerText = s;
+    document.getElementById('stat-acc').style.width = `${a}%`;
+    document.getElementById('stat-acc-val').innerText = a;
+    document.getElementById('stat-crn').style.width = `${c}%`;
+    document.getElementById('stat-crn-val').innerText = c;
+}
+
+function switchTab(tabId) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    event.currentTarget.classList.add('active');
+    
+    document.getElementById('tab-garage').classList.add('hidden');
+    document.getElementById('tab-shop').classList.add('hidden');
+    document.getElementById('tab-race').classList.add('hidden');
+    
+    document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+    
+    if(tabId === 'shop') renderShop(currentShopCategory);
+    if(tabId === 'garage') renderEquipmentList();
+}
+
+// --- GARAGE & SHOP LOGIC ---
+function renderEquipmentList() {
+    const list = document.getElementById('equipment-list');
+    list.innerHTML = '';
+    
+    const types = [
+        { key: 'motor', name: 'Motor', icon: '🔋' },
+        { key: 'tire', name: 'Tires', icon: '🍩' },
+        { key: 'roller', name: 'Rollers', icon: '⚙️' }
+    ];
+    
+    types.forEach(t => {
+        const equippedId = player.equipped[t.key];
+        const part = PARTS[t.key].find(p => p.id === equippedId);
+        
+        let html = `
+            <div class="bg-slate-800 p-3 rounded border border-slate-600 flex justify-between items-center">
+                <div class="flex items-center gap-3">
+                    <div class="text-2xl">${t.icon}</div>
+                    <div>
+                        <div class="text-xs text-slate-400 uppercase">${t.name}</div>
+                        <div class="font-bold text-white">${part ? part.name : 'None'}</div>
+                    </div>
+                </div>
+                <button onclick="switchTab('shop'); renderShop('${t.key}')" class="text-xs bg-blue-600 hover:bg-blue-500 px-3 py-1 rounded text-white font-bold transition">CHANGE</button>
+            </div>
+        `;
+        list.innerHTML += html;
+    });
+}
+
+function renderShop(category) {
+    currentShopCategory = category;
+    
+    // Update filters
+    document.querySelectorAll('.shop-filter').forEach(btn => {
+        btn.classList.remove('bg-slate-600', 'active-filter');
+        btn.classList.add('bg-slate-700');
+        if (btn.innerText.toLowerCase().includes(category.substring(0,3))) {
+            btn.classList.remove('bg-slate-700');
+            btn.classList.add('bg-slate-600', 'active-filter');
+        }
+    });
+
+    const list = document.getElementById('shop-items');
+    list.innerHTML = '';
+    
+    PARTS[category].forEach(part => {
+        const isOwned = player.inventory[category].includes(part.id);
+        const isEquipped = player.equipped[category] === part.id;
+        
+        let btnHtml = '';
+        if (isEquipped) {
+            btnHtml = `<button disabled class="bg-green-600 text-white font-bold py-2 px-4 rounded w-full opacity-70 cursor-not-allowed">EQUIPPED</button>`;
+        } else if (isOwned) {
+            btnHtml = `<button onclick="equipPart('${category}', '${part.id}')" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded w-full transition">EQUIP</button>`;
+        } else {
+            const canAfford = player.gold >= part.cost;
+            btnHtml = `<button onclick="buyPart('${category}', '${part.id}', ${part.cost})" class="${canAfford ? 'bg-yellow-500 hover:bg-yellow-400 text-slate-900' : 'bg-slate-700 text-slate-400 cursor-not-allowed'} font-bold py-2 px-4 rounded w-full transition" ${!canAfford ? 'disabled' : ''}>BUY - ${part.cost} G</button>`;
+        }
+        
+        let statsHtml = '';
+        if(part.spd !== 0) statsHtml += `<span class="${part.spd > 0 ? 'text-blue-400' : 'text-red-400'}">SPD ${part.spd > 0 ? '+'+part.spd : part.spd}</span> `;
+        if(part.acc !== 0) statsHtml += `<span class="${part.acc > 0 ? 'text-red-400' : 'text-red-400'}">ACC ${part.acc > 0 ? '+'+part.acc : part.acc}</span> `;
+        if(part.crn !== 0) statsHtml += `<span class="${part.crn > 0 ? 'text-green-400' : 'text-red-400'}">CRN ${part.crn > 0 ? '+'+part.crn : part.crn}</span> `;
+        if (statsHtml === '') statsHtml = '<span class="text-slate-500">No stat changes</span>';
+
+        list.innerHTML += `
+            <div class="bg-slate-800 p-3 rounded-lg border ${isEquipped ? 'border-green-500' : 'border-slate-600'}">
+                <div class="flex justify-between items-start mb-2">
+                    <div>
+                        <div class="font-bold text-white text-lg">${part.name}</div>
+                        <div class="text-xs text-slate-400">${part.desc}</div>
+                    </div>
+                </div>
+                <div class="text-xs font-mono bg-slate-900 p-2 rounded mb-3 flex gap-2 flex-wrap">
+                    ${statsHtml}
+                </div>
+                ${btnHtml}
+            </div>
+        `;
+    });
+}
+
+function buyPart(category, id, cost) {
+    if (player.gold >= cost) {
+        player.gold -= cost;
+        player.inventory[category].push(id);
+        equipPart(category, id, false);
+        showToast("Purchased!");
+    }
+}
+
+function equipPart(category, id, showTst = true) {
+    player.equipped[category] = id;
+    saveGame();
+    renderShop(category);
+    if(showTst) showToast("Equipped!");
+}
+
+function renderOpponentList() {
+    const list = document.getElementById('opponent-list');
+    list.innerHTML = '';
+    
+    OPPONENTS.forEach(opp => {
+        list.innerHTML += `
+            <div class="bg-slate-800 p-3 rounded-lg border border-slate-600 flex justify-between items-center">
+                <div>
+                    <div class="font-bold text-white" style="color: ${opp.color}">${opp.name}</div>
+                    <div class="text-xs text-slate-400">${opp.desc}</div>
+                    <div class="text-xs font-bold text-yellow-500 mt-1">Reward: ${opp.reward} G</div>
+                </div>
+                <button onclick="setupRace('${opp.id}')" class="bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-4 rounded shadow transition uppercase">Race</button>
+            </div>
+        `;
+    });
+}
+
+
+// --- RACE ENGINE ---
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+let raceAnimFrame;
+let raceActive = false;
+let raceState = 'INIT'; // INIT, COUNTDOWN, RACING, FINISHED
+let raceTimer = 0;
+let sparks = [];
+
+// Track Definition (Portrait Oval)
+// 600x800 logical canvas
+const TRACK = {
+    l1: {x: 150, y: 200}, l2: {x: 150, y: 600},
+    c1: {x: 300, y: 600}, r: 150,
+    r1: {x: 450, y: 600}, r2: {x: 450, y: 200},
+    c2: {x: 300, y: 200}
+};
+const L_STR = 400; // Straight length
+const L_ARC = Math.PI * TRACK.r; // Arc length (half circle) = 471.24
+const TRACK_LEN = L_STR + L_ARC + L_STR + L_ARC; // Total = 1742.48
+
+const TOTAL_LAPS = 3;
+let currentOpponent = null;
+
+let racers = [];
+
+// Track Math Tool
+function getPathInfo(distance, laneOffset = 0) {
+    let d = distance % TRACK_LEN;
+    if (d < 0) d += TRACK_LEN;
+    
+    let x, y, angle, isCurve;
+    
+    if (d < L_STR) {
+        // Left Straight (Downwards)
+        x = TRACK.l1.x - laneOffset;
+        y = TRACK.l1.y + d;
+        angle = Math.PI/2;
+        isCurve = false;
+    } else if (d < L_STR + L_ARC) {
+        // Bottom Curve (CCW)
+        let ad = d - L_STR;
+        // Inner radius gets smaller with negative offset
+        let currR = TRACK.r + laneOffset; 
+        let theta = Math.PI - (ad / TRACK.r); // from PI to 0
+        x = TRACK.c1.x + currR * Math.cos(theta);
+        y = TRACK.c1.y + currR * Math.sin(theta);
+        angle = theta - Math.PI/2;
+        isCurve = true;
+    } else if (d < L_STR + L_ARC + L_STR) {
+        // Right Straight (Upwards)
+        let sd = d - (L_STR + L_ARC);
+        x = TRACK.r1.x + laneOffset;
+        y = TRACK.r1.y - sd;
+        angle = -Math.PI/2;
+        isCurve = false;
+    } else {
+        // Top Curve (CCW)
+        let ad = d - (L_STR + L_ARC + L_STR);
+        let currR = TRACK.r + laneOffset;
+        let theta = 0 - (ad / TRACK.r); // from 0 to -PI
+        x = TRACK.c2.x + currR * Math.cos(theta);
+        y = TRACK.c2.y + currR * Math.sin(theta);
+        angle = theta - Math.PI/2;
+        isCurve = true;
+    }
+    
+    return { x, y, angle, isCurve };
+}
+
+function calculateAIStats(oppCar) {
+    let s = 10, a = 10, c = 10;
+    ['motor', 'tire', 'roller'].forEach(type => {
+        const part = PARTS[type].find(p => p.id === oppCar[type]);
+        if(part) { s += part.spd; a += part.acc; c += part.crn; }
+    });
+    return { spd: Math.max(1, s), acc: Math.max(1, a), crn: Math.max(1, c) };
+}
+
+class Car {
+    constructor(isPlayer, stats, lane, color) {
+        this.isPlayer = isPlayer;
+        this.lane = lane; // -20, 0, 20 (px offset)
+        this.color = color;
+        
+        // Physics derived from stats
+        // Max Speed: 250 to 900 px/s
+        this.maxSpeed = 250 + (stats.spd * 7); 
+        // Accel: 150 to 600 px/s^2
+        this.accel = 150 + (stats.acc * 5);
+        // Safe curve speed: 300 to 750 px/s
+        this.safeCurveSpeed = 300 + (stats.crn * 5); 
+        
+        // Sim state
+        this.distance = 0;
+        this.speed = 0;
+        this.lap = 0;
+        this.state = 'NORMAL'; // NORMAL, BRAKING, COURSE_OUT, FINISHED
+        this.pos = {x:0, y:0, angle:0};
+        
+        // Only for AI: slightly smooth their driving so they don't course out
+        this.aiBrakeDistance = isPlayer ? 0 : 50; 
+    }
+    
+    update(dt) {
+        if (this.state === 'COURSE_OUT' || this.state === 'FINISHED') return;
+        
+        const path = getPathInfo(this.distance, this.lane);
+        
+        // Cornering logic
+        if (path.isCurve) {
+            if (this.speed > this.safeCurveSpeed + 80) {
+                // Too fast! Course out!
+                this.state = 'COURSE_OUT';
+                if(this.isPlayer) {
+                    shakeScreen();
+                    updateHUDStatus('COURSE OUT!', 'text-red-500');
+                    setTimeout(() => endRace(false, 'You flew off the track! Cornering too low!'), 1500);
+                }
+                return;
+            } else if (this.speed > this.safeCurveSpeed) {
+                // Scraping the wall (slow down rapidly)
+                this.speed -= (this.accel * 1.5) * dt;
+                this.state = 'BRAKING';
+                if (Math.random() < 0.3) generateSparks(path.x, path.y, path.angle);
+                if(this.isPlayer) updateHUDStatus('UNSTABLE!', 'text-yellow-500');
+            } else {
+                // Safe, can accelerate slowly up to safe limit
+                this.speed = Math.min(this.safeCurveSpeed, this.speed + (this.accel * 0.2) * dt);
+                this.state = 'NORMAL';
+                if(this.isPlayer) updateHUDStatus('STABLE', 'text-green-400');
+            }
+        } else {
+            // AI predictive braking before curve
+            if (!this.isPlayer && this.speed > this.safeCurveSpeed) {
+                let distToCurve = L_STR - (this.distance % TRACK_LEN);
+                if (distToCurve > 0 && distToCurve < 100) {
+                    this.speed -= (this.accel * 1.2) * dt; // AI brakes
+                } else {
+                    this.speed = Math.min(this.maxSpeed, this.speed + this.accel * dt);
+                }
+            } else {
+                // Accelerating on straight
+                this.speed = Math.min(this.maxSpeed, this.speed + this.accel * dt);
+                this.state = 'NORMAL';
+                if(this.isPlayer) updateHUDStatus('ACCEL', 'text-blue-400');
+            }
+        }
+        
+        // Move
+        this.speed = Math.max(0, this.speed);
+        let prevDist = this.distance;
+        this.distance += this.speed * dt;
+        
+        // Lap check
+        if (Math.floor(prevDist / TRACK_LEN) < Math.floor(this.distance / TRACK_LEN)) {
+            this.lap++;
+            if(this.isPlayer && this.lap <= TOTAL_LAPS) {
+                document.getElementById('hud-lap').innerText = this.lap;
+            }
+            if (this.lap > TOTAL_LAPS) {
+                this.state = 'FINISHED';
+                if (this.isPlayer) {
+                    checkRaceEnd(this);
+                } else if (racers[0].state === 'FINISHED' && racers[1].state === 'FINISHED') {
+                    // Both finished, player must have lost
+                    checkRaceEnd(this);
+                }
+            }
+        }
+        
+        // Update visual pos
+        const newPath = getPathInfo(this.distance, this.lane);
+        this.pos = newPath;
+        
+        if (this.isPlayer && this.state !== 'COURSE_OUT') {
+            document.getElementById('hud-speed').innerText = Math.floor(this.speed / 10);
+        }
+    }
+    
+    draw(ctx) {
+        ctx.save();
+        
+        if (this.state === 'COURSE_OUT') {
+            // Spin out wildly off screen
+            this.pos.x += Math.random()*10 - 5;
+            this.pos.y += Math.random()*10 - 5;
+            this.pos.angle += 0.5;
+            ctx.globalAlpha = 0.5;
+        }
+        
+        ctx.translate(this.pos.x, this.pos.y);
+        ctx.rotate(this.pos.angle);
+        
+        // Draw Car Body
+        ctx.fillStyle = this.color;
+        // 20x40 car
+        ctx.fillRect(-10, -20, 20, 40);
+        
+        // Canopy
+        ctx.fillStyle = '#000';
+        ctx.fillRect(-6, -5, 12, 15);
+        
+        // Highlight indicator for player
+        if (this.isPlayer) {
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(-12, -22, 24, 44);
+            
+            // Draw small glow
+            ctx.shadowColor = this.color;
+            ctx.shadowBlur = 10;
+            ctx.fillStyle = 'rgba(255,255,255,0.8)';
+            ctx.fillRect(-2, 15, 4, 10); // Exhaust flame placeholder
+            ctx.shadowBlur = 0;
+        } else {
+             ctx.fillStyle = '#ff0';
+             ctx.fillRect(-2, 15, 4, 8);
+        }
+        
+        ctx.restore();
+    }
+}
+
+function generateSparks(x, y, angle) {
+    for(let i=0; i<3; i++){
+        sparks.push({
+            x: x, y: y,
+            vx: Math.cos(angle + Math.PI/2 + (Math.random()-0.5)) * (Math.random()*100 + 50),
+            vy: Math.sin(angle + Math.PI/2 + (Math.random()-0.5)) * (Math.random()*100 + 50),
+            life: 0.2 + Math.random()*0.2
+        });
+    }
+}
+
+function updateHUDStatus(text, colorClass) {
+    const el = document.getElementById('hud-status');
+    el.innerText = text;
+    el.className = `text-xl font-bold ${colorClass}`;
+}
+
+function shakeScreen() {
+    const main = document.getElementById('app');
+    main.classList.remove('shake');
+    void main.offsetWidth; // trigger reflow
+    main.classList.add('shake');
+}
+
+function setupRace(oppId) {
+    currentOpponent = OPPONENTS.find(o => o.id === oppId);
+    if(!currentOpponent) return;
+    
+    // Reset UI
+    document.getElementById('post-race').classList.add('hidden');
+    document.getElementById('hud-lap').innerText = '1';
+    document.getElementById('hud-pos').innerText = '-';
+    document.getElementById('hud-speed').innerText = '0';
+    updateHUDStatus('READY', 'text-white');
+    
+    // Setup Cars
+    racers = [];
+    // Player: Lane offset 15 (inner)
+    racers.push(new Car(true, currentStats, 15, '#3b82f6'));
+    // AI: Lane offset -15 (outer)
+    const aiStats = calculateAIStats(currentOpponent.car);
+    racers.push(new Car(false, aiStats, -15, currentOpponent.color));
+    
+    sparks = [];
+    raceTimer = 3.5;
+    raceState = 'COUNTDOWN';
+    
+    document.getElementById('race-screen').classList.remove('hidden');
+    document.getElementById('race-screen').classList.add('flex');
+    
+    // Initial draw
+    updatePositions(0);
+    drawTrack(ctx);
+    racers.forEach(r => r.draw(ctx));
+    
+    lastTime = performance.now();
+    raceAnimFrame = requestAnimationFrame(raceLoop);
+}
+
+let lastTime = 0;
+function raceLoop(time) {
+    let dt = (time - lastTime) / 1000;
+    // cap dt for stability
+    if(dt > 0.1) dt = 0.1; 
+    lastTime = time;
+    
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Draw background grid
+    ctx.strokeStyle = '#334155';
+    ctx.lineWidth = 1;
+    for(let i=0; i<canvas.width; i+=50) {
+        ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, canvas.height); ctx.stroke();
+    }
+    for(let i=0; i<canvas.height; i+=50) {
+        ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(canvas.width, i); ctx.stroke();
+    }
+    
+    drawTrack(ctx);
+    
+    if (raceState === 'COUNTDOWN') {
+        raceTimer -= dt;
+        const msg = document.getElementById('race-message');
+        msg.classList.remove('scale-0');
+        
+        if (raceTimer > 2.5) msg.innerText = "READY";
+        else if (raceTimer > 1.5) msg.innerText = "SET";
+        else if (raceTimer > 0.5) { msg.innerText = "GO!"; msg.classList.add('text-green-500'); }
+        else {
+            msg.classList.add('scale-0');
+            msg.classList.remove('text-green-500');
+            raceState = 'RACER';
+        }
+    } else if (raceState === 'RACER') {
+        updatePositions(dt);
+        
+        // Sparks
+        for(let i = sparks.length-1; i>=0; i--) {
+            let s = sparks[i];
+            s.x += s.vx * dt;
+            s.y += s.vy * dt;
+            s.life -= dt;
+            if(s.life <= 0) sparks.splice(i, 1);
+            else {
+                ctx.fillStyle = `rgba(255, 200, 0, ${s.life*5})`;
+                ctx.fillRect(s.x, s.y, 3, 3);
+            }
+        }
+    }
+    
+    // Draw racers sorted by lap/distance for overlapping
+    racers.sort((a,b) => (a.lap * TRACK_LEN + a.distance) - (b.lap * TRACK_LEN + b.distance));
+    racers.forEach(r => r.draw(ctx));
+    
+    // Update Pos HUD
+    if (raceState === 'RACER') {
+        let pCar = racers.find(r => r.isPlayer);
+        let aCar = racers.find(r => !r.isPlayer);
+        if (pCar && aCar) {
+            let pDist = pCar.lap * TRACK_LEN + pCar.distance;
+            let aDist = aCar.lap * TRACK_LEN + aCar.distance;
+            if (pCar.state === 'COURSE_OUT') document.getElementById('hud-pos').innerText = 'OUT';
+            else document.getElementById('hud-pos').innerText = (pDist >= aDist) ? '1st' : '2nd';
+        }
+    }
+    
+    if (raceState !== 'FINISHED_SCREEN') {
+        raceAnimFrame = requestAnimationFrame(raceLoop);
+    }
+}
+
+function updatePositions(dt) {
+    racers.forEach(r => r.update(dt));
+}
+
+function checkRaceEnd(triggerCar) {
+    if (raceState === 'FINISHED_SCREEN') return;
+    
+    const pCar = racers.find(r => r.isPlayer);
+    const aCar = racers.find(r => !r.isPlayer);
+    
+    if (pCar.state === 'COURSE_OUT') return; // Handled in update
+    
+    if (pCar.lap > TOTAL_LAPS && aCar.lap > TOTAL_LAPS) {
+         endRace(false, "Draw? No rewards."); // extremely rare edge case
+    } else if (pCar.lap > TOTAL_LAPS) {
+         endRace(true, `You beat ${currentOpponent.name}!`);
+    } else if (aCar.lap > TOTAL_LAPS) {
+         endRace(false, `${currentOpponent.name} beat you!`);
+    }
+}
+
+function endRace(playerWon, msg) {
+    raceState = 'FINISHED_SCREEN';
+    cancelAnimationFrame(raceAnimFrame);
+    
+    const screen = document.getElementById('post-race');
+    const title = document.getElementById('result-title');
+    const desc = document.getElementById('result-desc');
+    
+    screen.classList.remove('hidden');
+    screen.classList.add('flex');
+    
+    if (playerWon) {
+        title.innerText = "VICTORY!";
+        title.className = "text-5xl font-black mb-2 text-green-400 italic drop-shadow-lg";
+        desc.innerText = `${msg}\n\n+ ${currentOpponent.reward} Gold earned!`;
+        player.gold += currentOpponent.reward;
+        saveGame();
+    } else {
+        title.innerText = "DEFEAT";
+        title.className = "text-5xl font-black mb-2 text-red-500 italic drop-shadow-lg";
+        desc.innerText = msg;
+    }
+}
+
+function exitRace() {
+    document.getElementById('race-screen').classList.add('hidden');
+    document.getElementById('race-screen').classList.remove('flex');
+    updateUI();
+}
+
+function drawTrack(ctx) {
+    // Outer Wall
+    drawPath(ctx, 0, 70, '#475569'); // slate-600
+    // Track Base
+    drawPath(ctx, 0, 60, '#cbd5e1'); // slate-300
+    
+    // Lane lines
+    drawPath(ctx, 0, 2, '#94a3b8'); // center
+    drawPath(ctx, -30, 2, '#ef4444'); // outer wall line
+    drawPath(ctx, 30, 2, '#ef4444');  // inner wall line
+    
+    // Start/Finish Line
+    ctx.save();
+    ctx.translate(TRACK.l1.x, TRACK.l1.y - 50); // Near start of left straight
+    ctx.fillStyle = '#fff';
+    for(let i=-30; i<30; i+=10) {
+        for(let j=0; j<20; j+=10) {
+             if ((i+j)%20 === 0) ctx.fillRect(i, j, 10, 10);
+        }
+    }
+    ctx.fillStyle = '#000';
+    for(let i=-30; i<30; i+=10) {
+        for(let j=0; j<20; j+=10) {
+             if ((i+j)%20 !== 0) ctx.fillRect(i, j, 10, 10);
+        }
+    }
+    ctx.restore();
+}
+
+function drawPath(ctx, offset, width, color) {
+    ctx.beginPath();
+    // Start top-left straight
+    ctx.moveTo(TRACK.l1.x - offset, TRACK.l1.y);
+    ctx.lineTo(TRACK.l2.x - offset, TRACK.l2.y);
+    // Bottom curve
+    ctx.arc(TRACK.c1.x, TRACK.c1.y, TRACK.r + offset, Math.PI, 0, true);
+    // Right straight
+    ctx.lineTo(TRACK.r1.x + offset, TRACK.r1.y);
+    ctx.lineTo(TRACK.r2.x + offset, TRACK.r2.y);
+    // Top curve
+    ctx.arc(TRACK.c2.x, TRACK.c2.y, TRACK.r + offset, 0, Math.PI, true);
+    
+    ctx.lineWidth = width;
+    ctx.strokeStyle = color;
+    ctx.stroke();
+}
+
+
+// Start App
+window.onload = init;
+
+</script>
+</body>
+</html>
+
+```
